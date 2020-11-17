@@ -25,7 +25,7 @@ def generate_store_send_otp(faceId, phoneNumber):
                         'faceId': faceId
                     }
                 )
-        msg = "OTP for access is " + str(otp)
+        msg = "OTP for access is " + str(otp) + " link is : http://frontend-visitor.s3-website-us-east-1.amazonaws.com/"
         send_message(phoneNumber, msg)
 
 def send_message(phoneNumber, msg):

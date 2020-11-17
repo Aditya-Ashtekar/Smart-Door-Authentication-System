@@ -8,7 +8,7 @@ import random
 bucketName = "owner-photos"
 collection_id = "collection1"
 
-ownerPhoneNumber = "9294149886"
+ownerPhoneNumber = "7184158948"
 
 def parse_face_search_response(faceSearchResponse):
     matched = 0
@@ -16,7 +16,7 @@ def parse_face_search_response(faceSearchResponse):
     if len(faceSearchResponse) > 0:
         if faceSearchResponse[0]["MatchedFaces"]:
             matched = 1
-            faceId = faceSearchResponse[0]["MatchedFaces"][-1]["Face"]["FaceId"]
+            faceId = faceSearchResponse[0]["MatchedFaces"][0]["Face"]["FaceId"]
     else:
         matched = -1
     return matched, faceId
@@ -70,7 +70,7 @@ def generate_store_send_otp(faceId, phoneNumber):
                         'faceId': faceId
                     }
                 )
-        msg = "OTP for access is " + str(otp)
+        msg = "OTP for access is " + str(otp) + "link: http://frontend-visitor.s3-website-us-east-1.amazonaws.com"
         send_message(phoneNumber, msg)
 
 def send_message(phoneNumber, msg):
@@ -216,7 +216,6 @@ def lambda_handler(event, context):
             if faceDetails:
                 print("FaceID exists in DynamoDB")
                 phoneNumber = parse_phone_number(faceDetails)
-                #print(phoneNumber)
                 result = check_otp_existence(faceId)
                 if not result:
                     image_name, image_link = fetch_image(streamARN, fragmentNumber, serverTimestamp)
@@ -231,11 +230,24 @@ def lambda_handler(event, context):
         elif (matched == 0):
             # Unrecognized face
             print("Unrecognized face")
-            image_name, image_link = fetch_image(streamARN, fragmentNumber, serverTimestamp)
-            print("Completed fetching image")
-            if image_name:# and detect_faces_from_s3(image_name):
-                faceId = collection_insert(image_name)
-                print("Assigning new faceID: " + faceId)
-                # https://ownerportal.s3.amazonaws.com/index.html?fragmentNumber=10a
-                msg = "You have a new visitor Sabby,  Please authorize using the following link - http://frontend-owner.s3-website-us-east-1.amazonaws.com?fragmentNumber=" + fragmentNumber
-                send_message(ownerPhoneNumber, msg)
+            dynamodb = boto3.resource('dynamodb')
+            table = dynamodb.Table('fragments')
+            response = table.get_item(Key={'fragmentNumber': fragmentNumber})
+            print(response)
+            if response.get("Item", None):
+                print("Fragment already present, not sending link to owner")
+            else:
+                response = table.put_item(
+                Item={
+                        'fragmentNumber': fragmentNumber,
+                    }
+                )
+                image_name, image_link = fetch_image(streamARN, fragmentNumber, serverTimestamp)
+                print("Completed fetching image")
+                if image_name:# and detect_faces_from_s3(image_name):
+                    faceId = collection_insert(image_name)
+                    print("Assigning new faceID: " + faceId)
+                    msg = "You have a new visitor,  Please authorize using the following link - http://frontend-owner.s3-website-us-east-1.amazonaws.com?fragmentNumber=" + fragmentNumber
+                    send_message(ownerPhoneNumber, msg)
+                else:
+                    print("Message not sent to Owner authorizing visitor")
